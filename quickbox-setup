@@ -94,6 +94,7 @@ function _logcheck() {
 
 # primary partition question (4)
 function _askpartition() {
+  if [[ $quota == yes ]]; then
   echo
   echo "##################################################################################"
   echo "#${bold} By default the QuickBox script will initiate a build using ${green}/${normal} ${bold}as the${normal}"
@@ -121,6 +122,7 @@ function _askpartition() {
     *) primaryroot=root ;;
   esac
   echo "Using ${green}$primaryroot mount${normal} for quotas"
+fi
 }
 
 function _askcontinue() {
@@ -164,6 +166,34 @@ else
         echo "Hostname set to ${input}"
 fi
 echo
+}
+
+function _askquota() {
+  echo -ne "${bold}${yellow}Do you wish to use user quotas?${normal} (Default: ${green}${bold}Y${normal}) "; read input
+    case $input in
+      [yY] | [yY][Ee][Ss] | "" ) quota="yes";echo "${bold}Quotas will be installed${normal}" ;;
+      [nN] | [nN][Oo] ) quota="no";echo "${cyan}Quotas will not be installed${normal}" ;;
+    *) quota="yes";echo "${bold}Quotas will be installed${normal}" ;;
+    esac
+}
+
+function _askservices() {
+  DISTRO=$(lsb_release -is)
+  RELEASE=$(lsb_release -rs)
+  CODENAME=$(lsb_release -cs)
+  SETNAME=$(lsb_release -rc)
+  echo "You are running $DISTRO $CODENAME"
+  if [[ "$CODENAME" =~ ("xenial"|"wily"|"jessie") ]]; then
+    echo "This distribution has support for systemd services. Would you like to enable? (recommended)"
+    case $input in
+      [yY] | [yY][Ee][Ss] | "" ) cron="no";echo "${bold}Using systemd for process management${normal}" ;;
+      [nN] | [nN][Oo] ) cron="yes";echo "${cyan}Cron will manage your processes${normal}" ;;
+    *) cron="no";echo "${bold}Using systemd for process management${normal}" ;;
+    esac
+  elif [[ "$CODENAME" =~ ("trusty"|"wheezy") ]]; then
+    cron="yes"
+    echo "This distribution only supports sysv. Defaulting to cron process management."
+  fi
 }
 
 # ask what rtorrent version (8)
@@ -407,38 +437,41 @@ function _skel() {
 
 function _qmount() {
   # Setup mount points for Quotas
-  if [[ $DISTRO == Ubuntu ]]; then
-    if [[ ${primaryroot} == "root" ]]; then
-      sed -i 's/errors=remount-ro/usrquota,errors=remount-ro/g' /etc/fstab
-      apt-get install -y linux-image-extra-virtual quota >>"${OUTTO}" 2>&1
-      mount -o remount / || mount -o remount /home >>"${OUTTO}" 2>&1
-      quotacheck -auMF vfsv1 >>"${OUTTO}" 2>&1
-      quotaon -uv / >>"${OUTTO}" 2>&1
-      service quota start >>"${OUTTO}" 2>&1
-    else
-      sed -i 's/errors=remount-ro/usrquota,errors=remount-ro/g' /etc/fstab
-      apt-get install -y linux-image-extra-virtual quota >>"${OUTTO}" 2>&1
-      mount -o remount /home >>"${OUTTO}" 2>&1
-      quotacheck -auMF vfsv1 >>"${OUTTO}" 2>&1
-      quotaon -uv /home >>"${OUTTO}" 2>&1
-      service quota start >>"${OUTTO}" 2>&1
+  if [[ $quota == yes ]]; then
+    if [[ $DISTRO == Ubuntu ]]; then
+      if [[ ${primaryroot} == "root" ]]; then
+        sed -i 's/errors=remount-ro/usrquota,errors=remount-ro/g' /etc/fstab
+        apt-get install -y linux-image-extra-virtual quota >>"${OUTTO}" 2>&1
+        mount -o remount / || mount -o remount /home >>"${OUTTO}" 2>&1
+        quotacheck -auMF vfsv1 >>"${OUTTO}" 2>&1
+        quotaon -uv / >>"${OUTTO}" 2>&1
+        service quota start >>"${OUTTO}" 2>&1
+      else
+        sed -i 's/errors=remount-ro/usrquota,errors=remount-ro/g' /etc/fstab
+        apt-get install -y linux-image-extra-virtual quota >>"${OUTTO}" 2>&1
+        mount -o remount /home >>"${OUTTO}" 2>&1
+        quotacheck -auMF vfsv1 >>"${OUTTO}" 2>&1
+        quotaon -uv /home >>"${OUTTO}" 2>&1
+        service quota start >>"${OUTTO}" 2>&1
+      fi
+    elif [[ $DISTRO == Debian ]]; then
+      if [[ ${primaryroot} == "root" ]]; then
+        sed -i 's/errors=remount-ro/usrquota,errors=remount-ro/g' /etc/fstab
+        apt-get install -y quota >>"${OUTTO}" 2>&1
+        mount -o remount / || mount -o remount /home >>"${OUTTO}" 2>&1
+        quotacheck -auMF vfsv1 >>"${OUTTO}" 2>&1
+        quotaon -uv / >>"${OUTTO}" 2>&1
+        service quota start >>"${OUTTO}" 2>&1
+      else
+        sed -i 's/errors=remount-ro/usrquota,errors=remount-ro/g' /etc/fstab
+        apt-get install -y quota >>"${OUTTO}" 2>&1
+        mount -o remount /home >>"${OUTTO}" 2>&1
+        quotacheck -auMF vfsv1 >>"${OUTTO}" 2>&1
+        quotaon -uv /home >>"${OUTTO}" 2>&1
+        service quota start >>"${OUTTO}" 2>&1
+      fi
     fi
-  elif [[ $DISTRO == Debian ]]; then
-    if [[ ${primaryroot} == "root" ]]; then
-      sed -i 's/errors=remount-ro/usrquota,errors=remount-ro/g' /etc/fstab
-      apt-get install -y quota >>"${OUTTO}" 2>&1
-      mount -o remount / || mount -o remount /home >>"${OUTTO}" 2>&1
-      quotacheck -auMF vfsv1 >>"${OUTTO}" 2>&1
-      quotaon -uv / >>"${OUTTO}" 2>&1
-      service quota start >>"${OUTTO}" 2>&1
-    else
-      sed -i 's/errors=remount-ro/usrquota,errors=remount-ro/g' /etc/fstab
-      apt-get install -y quota >>"${OUTTO}" 2>&1
-      mount -o remount /home >>"${OUTTO}" 2>&1
-      quotacheck -auMF vfsv1 >>"${OUTTO}" 2>&1
-      quotaon -uv /home >>"${OUTTO}" 2>&1
-      service quota start >>"${OUTTO}" 2>&1
-    fi
+    touch /install/.quota.lock
   fi
 }
 
@@ -845,8 +878,18 @@ function _quickconsole() {
 
 # seedbox boot for first user (35)
 function _boot() {
-  command1="*/1 * * * * /home/${username}/.startup >/dev/null 2>&1"
-  cat <(fgrep -iv "${command1}" <(sh -c 'sudo -u ${username} crontab -l' >/dev/null 2>&1)) <(echo "${command1}") | sudo -u ${username} crontab -
+  if [[ $cron == yes ]]; then
+    touch /install/.cron.lock
+    command1="*/1 * * * * /home/${username}/.startup >/dev/null 2>&1"
+    cat <(fgrep -iv "${command1}" <(sh -c 'sudo -u ${username} crontab -l' >/dev/null 2>&1)) <(echo "${command1}") | sudo -u ${username} crontab -
+  elif [[ $cron == no ]]; then
+    cp ${local_setup}templates/system/rtorrent.template /etc/systemd/system/rtorrent@.service
+    cp ${local_setup}templates/system/irssi.template /etc/systemd/system/irssi@.service
+    cp ${local_setup}templates/system/deluged.template /etc/systemd/system/deluged@.service
+    cp ${local_setup}templates/system/deluge-web.template /etc/systemd/system/deluge-web@.service
+    systemctl enable {rtorrent,irssi,deluged,deluge-web}@${username}
+    systemctl start {rtorrent,irssi,deluged,deluge-web}@${username}
+  fi
 
   echo "*/1 * * * * root bash /usr/local/bin/quickbox/system/set_interface" > /etc/cron.d/set_interface
 }
@@ -1002,6 +1045,8 @@ _ssdpblock
 clear
 
 _hostname
+_askquota
+_askpartition
 _askrtorrent
 _askdeluge
 _adduser
