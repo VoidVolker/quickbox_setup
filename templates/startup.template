@@ -1,11 +1,12 @@
 #!/bin/bash
-export USER=`id -un`
+export USER=$(whoami)
 IRSSI_CLIENT=yes
 RTORRENT_CLIENT=yes
 DELUGED_CLIENT=no
 DELUGEWEB_CLIENT=no
 BTSYNC=no
 SONARR=no
+PYLOAD=no
 WIPEDEAD=yes
 ADDRESS=$(ip route get 8.8.8.8 | awk 'NR==1 {print $NF}')
 
@@ -39,4 +40,10 @@ if [ "$SONARR" == "yes" ]; then
   (ps aux|grep mono >/dev/null && (sudo service sonarr start && false))
 else
   (ps aux|grep mono >/dev/null && (sudo service sonarr stop && false))
+fi
+
+if [ "$PYLOAD" == "yes" ]; then
+  (ps aux|grep pyLoadCore >/dev/null && (sudo /usr/bin/python /opt/pyLoad/pyLoadCore.py --daemon && false))
+else
+  (ps aux|grep pyLoadCore >/dev/null && (sudo pkill -f pyLoadCore && false))
 fi
